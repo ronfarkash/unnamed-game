@@ -32,7 +32,6 @@ Win32RenderGradient(int XOffset, int YOffset)
             // 00 00 00 00
             // BB
             *Pixel++ = ((Green << 8) | Blue);
-            int b = 0;
         }
         Row += Pitch;
     }
