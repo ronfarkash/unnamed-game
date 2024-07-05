@@ -12,10 +12,9 @@ struct win32_offscreen_buffer
     int Width;
     int Height;
     int Pitch;
-    int BytesPerPixel;
 };
 
-global_variable bool Running;
+global_variable bool GlobalRunning;
 global_variable win32_offscreen_buffer GlobalBackbuffer;
 
 struct win32_window_dimension
@@ -64,7 +63,7 @@ Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, int Height)
 
     Buffer->Width = Width;
     Buffer->Height = Height;
-    Buffer->BytesPerPixel = 4;
+    int BytesPerPixel = 4;
 
     Buffer->Info.bmiHeader.biSize = sizeof(Buffer->Info.bmiHeader);
     Buffer->Info.bmiHeader.biWidth = Buffer->Width;
@@ -79,16 +78,16 @@ Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, int Height)
      architecture need to read more
      about it*/
     int BitmapMemorySize =
-        (Buffer->Width * Buffer->Height) * Buffer->BytesPerPixel;
+        (Buffer->Width * Buffer->Height) * BytesPerPixel;
     Buffer->Memory =
         VirtualAlloc(0, BitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
 
-    Buffer->Pitch = Width * Buffer->BytesPerPixel;
+    Buffer->Pitch = Width * BytesPerPixel;
 }
 
 internal void Win32DisplayBufferInWindow(
     HDC DeviceContext, int WindowWidth, int WindowHeight,
-    win32_offscreen_buffer Buffer, int X, int Y, int Width, int Height)
+    win32_offscreen_buffer Buffer)
 {
     StretchDIBits(
         DeviceContext, 0, 0, WindowWidth, WindowHeight, 0, 0, Buffer.Width,
@@ -108,13 +107,13 @@ Win32MainWindowCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
         break;
         case WM_DESTROY:
         {
-            Running = false;
+            GlobalRunning = false;
         }
         break;
 
         case WM_CLOSE:
         {
-            Running = false;
+            GlobalRunning = false;
         }
         break;
 
@@ -136,7 +135,7 @@ Win32MainWindowCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
 
             Win32DisplayBufferInWindow(
                 DeviceContext, Dimension.Width, Dimension.Height,
-                GlobalBackbuffer, X, Y, Width, Height);
+                GlobalBackbuffer);
             EndPaint(Window, &Paint);
         }
         break;
@@ -157,7 +156,7 @@ int CALLBACK WINAPI WinMain(
 
     Win32ResizeDIBSection(&GlobalBackbuffer, 1280, 720);
 
-    WindowClass.style = CS_HREDRAW | CS_VREDRAW;
+    WindowClass.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
     WindowClass.lpfnWndProc = Win32MainWindowCallback;
     WindowClass.hInstance = Instance;
     // WindowClass.hIcon
@@ -171,29 +170,29 @@ int CALLBACK WINAPI WinMain(
             CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, Instance, 0);
         if (Window)
         {
-            Running = true;
+            HDC DeviceContext = GetDC(Window);
+            GlobalRunning = true;
             int XOffset = 0;
             int YOffset = 0;
-            while (Running)
+            while (GlobalRunning)
             {
                 MSG Message;
                 while (PeekMessage(&Message, 0, 0, 0, PM_REMOVE))
                 {
                     if (Message.message == WM_QUIT)
                     {
-                        Running = false;
+                        GlobalRunning = false;
                     }
                     TranslateMessage(&Message);
                     DispatchMessage(&Message);
                 }
                 Win32RenderGradient(GlobalBackbuffer, XOffset, YOffset);
 
-                HDC DeviceContext = GetDC(Window);
                 win32_window_dimension Dimension =
                     Win32GetWindowDimension(Window);
                 Win32DisplayBufferInWindow(
                     DeviceContext, Dimension.Width, Dimension.Height,
-                    GlobalBackbuffer, 0, 0, Dimension.Width, Dimension.Height);
+                    GlobalBackbuffer);
                 ReleaseDC(Window, DeviceContext);
 
                 ++XOffset;
