@@ -36,20 +36,20 @@ win32_window_dimension Win32GetWindowDimension(HWND Window)
 }
 
 internal void
-Win32RenderGradient(win32_offscreen_buffer Buffer, int XOffset, int YOffset)
+Win32RenderGradient(win32_offscreen_buffer *Buffer, int XOffset, int YOffset)
 {
-    uint8_t *Row = (uint8_t *)Buffer.Memory;
-    for (int Y = 0; Y < Buffer.Height; ++Y)
+    uint8_t *Row = (uint8_t *)Buffer->Memory;
+    for (int Y = 0; Y < Buffer->Height; ++Y)
     {
         uint32_t *Pixel = (uint32_t *)Row;
-        for (int X = 0; X < Buffer.Width; ++X)
+        for (int X = 0; X < Buffer->Width; ++X)
         {
             uint8_t Blue = (uint8_t)(X + XOffset);
             uint8_t Green = (uint8_t)(Y + YOffset);
 
             *Pixel++ = ((Green << 8) | Blue);
         }
-        Row += Buffer.Pitch;
+        Row += Buffer->Pitch;
     }
 }
 
@@ -77,8 +77,7 @@ Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, int Height)
      added for padding to optimize x86
      architecture need to read more
      about it*/
-    int BitmapMemorySize =
-        (Buffer->Width * Buffer->Height) * BytesPerPixel;
+    int BitmapMemorySize = (Buffer->Width * Buffer->Height) * BytesPerPixel;
     Buffer->Memory =
         VirtualAlloc(0, BitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
 
@@ -87,11 +86,11 @@ Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, int Height)
 
 internal void Win32DisplayBufferInWindow(
     HDC DeviceContext, int WindowWidth, int WindowHeight,
-    win32_offscreen_buffer Buffer)
+    win32_offscreen_buffer *Buffer)
 {
     StretchDIBits(
-        DeviceContext, 0, 0, WindowWidth, WindowHeight, 0, 0, Buffer.Width,
-        Buffer.Height, Buffer.Memory, &Buffer.Info, DIB_RGB_COLORS, SRCCOPY);
+        DeviceContext, 0, 0, WindowWidth, WindowHeight, 0, 0, Buffer->Width,
+        Buffer->Height, Buffer->Memory, &Buffer->Info, DIB_RGB_COLORS, SRCCOPY);
 }
 
 LRESULT CALLBACK
@@ -101,10 +100,6 @@ Win32MainWindowCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
 
     switch (Message)
     {
-        case WM_SIZE:
-        {
-        }
-        break;
         case WM_DESTROY:
         {
             GlobalRunning = false;
@@ -122,6 +117,21 @@ Win32MainWindowCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
             OutputDebugStringA("WM_ACTIVATEAPP\n");
         }
         break;
+        case WM_SYSKEYDOWN:
+        case WM_SYSKEYUP:
+        case WM_KEYDOWN:
+        case WM_KEYUP:
+        {
+            uint32_t VKCode = WParam;
+            bool WasDown = ((LParam & (1 << 30)) != 0);
+            bool IsDown = ((LParam & (1 << 31)) == 0);
+            if (WasDown == IsDown)
+                break;
+            if (VKCode == VK_UP)
+            {
+            }
+        }
+        break;
         case WM_PAINT:
         {
             PAINTSTRUCT Paint;
@@ -135,7 +145,7 @@ Win32MainWindowCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
 
             Win32DisplayBufferInWindow(
                 DeviceContext, Dimension.Width, Dimension.Height,
-                GlobalBackbuffer);
+                &GlobalBackbuffer);
             EndPaint(Window, &Paint);
         }
         break;
@@ -186,13 +196,14 @@ int CALLBACK WINAPI WinMain(
                     TranslateMessage(&Message);
                     DispatchMessage(&Message);
                 }
-                Win32RenderGradient(GlobalBackbuffer, XOffset, YOffset);
+
+                Win32RenderGradient(&GlobalBackbuffer, XOffset, YOffset);
 
                 win32_window_dimension Dimension =
                     Win32GetWindowDimension(Window);
                 Win32DisplayBufferInWindow(
                     DeviceContext, Dimension.Width, Dimension.Height,
-                    GlobalBackbuffer);
+                    &GlobalBackbuffer);
                 ReleaseDC(Window, DeviceContext);
 
                 ++XOffset;
