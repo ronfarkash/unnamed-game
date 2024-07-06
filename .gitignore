@@ -3,6 +3,7 @@ data/
 misc/
 .clang-format
 .vscode
+shell.bat
 
 # Prerequisites
 *.d

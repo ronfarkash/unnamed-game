@@ -1,9 +1,17 @@
+#include <dsound.h>
 #include <stdint.h>
 #include <windows.h>
 
 #define internal static
 #define local_persist static
 #define global_variable static
+
+typedef int32_t bool32;
+
+#define DIRECT_SOUND_CREATE(name) \
+    HRESULT WINAPI name(          \
+        LPCGUID pcGuideDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
+typedef DIRECT_SOUND_CREATE(direct_sound_create);
 
 struct win32_offscreen_buffer
 {
@@ -33,6 +41,73 @@ win32_window_dimension Win32GetWindowDimension(HWND Window)
     Result.Height = ClientRect.bottom - ClientRect.top;
 
     return (Result);
+}
+
+internal void
+Win32InitDSound(HWND Window, int32_t SamplesPerSecond, int32_t BufferSize)
+{
+    HMODULE DSoundLibrary = LoadLibraryA("dsound.dll");
+    if (DSoundLibrary)
+    {
+        direct_sound_create *DirectSoundCreate =
+            (direct_sound_create *)GetProcAddress(
+                DSoundLibrary, "DirectSoundCreate");
+        LPDIRECTSOUND DirectSound;
+        if (DirectSoundCreate &&
+            SUCCEEDED(DirectSoundCreate(0, &DirectSound, 0)))
+        {
+            WAVEFORMATEX WaveFormat = {};
+            WaveFormat.wFormatTag = WAVE_FORMAT_PCM;
+            WaveFormat.nChannels = 2;
+            WaveFormat.nSamplesPerSec = SamplesPerSecond;
+            WaveFormat.wBitsPerSample = 16;
+            WaveFormat.nBlockAlign =
+                (WaveFormat.nChannels * WaveFormat.wBitsPerSample) / 8;
+            WaveFormat.nAvgBytesPerSec =
+                WaveFormat.nSamplesPerSec * WaveFormat.nBlockAlign;
+            WaveFormat.cbSize = 0;
+
+            if (SUCCEEDED(
+                    DirectSound->SetCooperativeLevel(Window, DSSCL_PRIORITY)))
+            {
+                DSBUFFERDESC BufferDescription = {};
+                BufferDescription.dwSize = sizeof(BufferDescription);
+                BufferDescription.dwFlags = DSBCAPS_PRIMARYBUFFER;
+
+                LPDIRECTSOUNDBUFFER PrimaryBuffer;
+                if (SUCCEEDED(DirectSound->CreateSoundBuffer(
+                        &BufferDescription, &PrimaryBuffer, 0)))
+                {
+                    if (SUCCEEDED(PrimaryBuffer->SetFormat(&WaveFormat)))
+                    {
+                    }
+                    else
+                    {
+                    }
+                }
+                else
+                {
+                }
+            }
+            else
+            {
+            }
+
+            DSBUFFERDESC BufferDescription = {};
+            BufferDescription.dwSize = sizeof(BufferDescription);
+            BufferDescription.dwFlags = 0;
+            BufferDescription.dwBufferBytes = BufferSize;
+            BufferDescription.lpwfxFormat = &WaveFormat;
+            LPDIRECTSOUNDBUFFER SecondaryBuffer;
+            if (SUCCEEDED(DirectSound->CreateSoundBuffer(
+                    &BufferDescription, &SecondaryBuffer, 0)))
+            {
+            }
+        }
+        else
+        {
+        }
+    }
 }
 
 internal void
@@ -79,7 +154,7 @@ Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, int Height)
      about it*/
     int BitmapMemorySize = (Buffer->Width * Buffer->Height) * BytesPerPixel;
     Buffer->Memory =
-        VirtualAlloc(0, BitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
+        VirtualAlloc(0, BitmapMemorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
     Buffer->Pitch = Width * BytesPerPixel;
 }
@@ -184,6 +259,9 @@ int CALLBACK WINAPI WinMain(
             GlobalRunning = true;
             int XOffset = 0;
             int YOffset = 0;
+
+            Win32InitDSound(Window, 48000, 48000 * sizeof(int16_t) * 2);
+
             while (GlobalRunning)
             {
                 MSG Message;
