@@ -1,6 +1,7 @@
 #include <dsound.h>
 #include <math.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <windows.h>
 
 #define internal static
@@ -274,6 +275,10 @@ void Win32FillSoundBuffer(win32_sound_output *SoundOutput, DWORD ByteToLock, DWO
 
 int CALLBACK WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowCode)
 {
+    LARGE_INTEGER PerfCounterFrequencyResult;
+    QueryPerformanceFrequency(&PerfCounterFrequencyResult);
+    uint64_t PerfCounterFrequency = PerfCounterFrequencyResult.QuadPart;
+
     WNDCLASSA WindowClass = {};
 
     Win32ResizeDIBSection(&GlobalBackbuffer, 1280, 720);
@@ -292,7 +297,6 @@ int CALLBACK WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR Co
         if (Window)
         {
             HDC DeviceContext = GetDC(Window);
-            GlobalRunning = true;
             int XOffset = 0;
             int YOffset = 0;
 
@@ -310,6 +314,11 @@ int CALLBACK WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR Co
             Win32FillSoundBuffer(&SoundOutput, 0, SoundOutput.LatencySampleCount * SoundOutput.BytesPerSample);
             GlobalSecondaryBuffer->Play(0, 0, DSBPLAY_LOOPING);
 
+            GlobalRunning = true;
+
+            LARGE_INTEGER LastCounter;
+            QueryPerformanceCounter(&LastCounter);
+            int64_t LastCycleCount = __rdtsc();
             while (GlobalRunning)
             {
                 MSG Message;
@@ -349,6 +358,24 @@ int CALLBACK WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR Co
                 win32_window_dimension Dimension = Win32GetWindowDimension(Window);
                 Win32DisplayBufferInWindow(DeviceContext, Dimension.Width, Dimension.Height, &GlobalBackbuffer);
                 ++XOffset;
+
+                LARGE_INTEGER EndCounter;
+                QueryPerformanceCounter(&EndCounter);
+
+                uint64_t EndCycleCount = __rdtsc();
+
+                uint64_t CyclesElapsed = EndCycleCount - LastCycleCount;
+                int64_t CounterElapsed = EndCounter.QuadPart - LastCounter.QuadPart;
+                float MSPerFrame = ((1000.0f * (float)CounterElapsed) / (float)PerfCounterFrequency);
+                float FPS = ((float)PerfCounterFrequency / (float)CounterElapsed);
+                float MCPF = (float)(CyclesElapsed / (1000.0f * 1000.0f));
+
+                char Buffer[256];
+                sprintf(Buffer, " %.02fms/f,  %.02ff/s, %.02fmc/f\n", MSPerFrame, FPS, MCPF);
+                OutputDebugStringA(Buffer);
+
+                LastCounter = EndCounter;
+                LastCycleCount = EndCycleCount;
             }
         }
         else
