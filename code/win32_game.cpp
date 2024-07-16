@@ -366,9 +366,9 @@ int CALLBACK WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR Co
 
                 uint64_t CyclesElapsed = EndCycleCount - LastCycleCount;
                 int64_t CounterElapsed = EndCounter.QuadPart - LastCounter.QuadPart;
-                float MSPerFrame = ((1000.0f * (float)CounterElapsed) / (float)PerfCounterFrequency);
-                float FPS = ((float)PerfCounterFrequency / (float)CounterElapsed);
-                float MCPF = (float)(CyclesElapsed / (1000.0f * 1000.0f));
+                double MSPerFrame = ((1000.0f * (double)CounterElapsed) / (double)PerfCounterFrequency);
+                double FPS = ((double)PerfCounterFrequency / (double)CounterElapsed);
+                double MCPF = (double)(CyclesElapsed / (1000.0f * 1000.0f));
 
                 char Buffer[256];
                 sprintf(Buffer, " %.02fms/f,  %.02ff/s, %.02fmc/f\n", MSPerFrame, FPS, MCPF);
