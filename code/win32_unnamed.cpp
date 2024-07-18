@@ -1,8 +1,4 @@
-#include <dsound.h>
-#include <math.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <windows.h>
 
 #define internal static
 #define local_persist static
@@ -12,8 +8,22 @@
 
 typedef int32_t bool32;
 
+#include <dsound.h>
+#include <math.h>
+#include <stdio.h>
+#include <windows.h>
+
+#include "unnamed.cpp"
+#include "unnamed.h"
+
 #define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPCGUID pcGuideDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
 typedef DIRECT_SOUND_CREATE(direct_sound_create);
+
+struct win32_window_dimension
+{
+    int Width;
+    int Height;
+};
 
 struct win32_offscreen_buffer
 {
@@ -27,12 +37,6 @@ struct win32_offscreen_buffer
 global_variable bool32 GlobalRunning;
 global_variable win32_offscreen_buffer GlobalBackbuffer;
 global_variable LPDIRECTSOUNDBUFFER GlobalSecondaryBuffer;
-
-struct win32_window_dimension
-{
-    int Width;
-    int Height;
-};
 
 win32_window_dimension Win32GetWindowDimension(HWND Window)
 {
@@ -101,23 +105,6 @@ internal void Win32InitDSound(HWND Window, int32_t SamplesPerSecond, int32_t Buf
         else
         {
         }
-    }
-}
-
-internal void Win32RenderGradient(win32_offscreen_buffer *Buffer, int XOffset, int YOffset)
-{
-    uint8_t *Row = (uint8_t *)Buffer->Memory;
-    for (int Y = 0; Y < Buffer->Height; ++Y)
-    {
-        uint32_t *Pixel = (uint32_t *)Row;
-        for (int X = 0; X < Buffer->Width; ++X)
-        {
-            uint8_t Blue = (uint8_t)(X + XOffset);
-            uint8_t Green = (uint8_t)(Y + YOffset);
-
-            *Pixel++ = ((Green << 8) | Blue);
-        }
-        Row += Buffer->Pitch;
     }
 }
 
@@ -332,7 +319,12 @@ int CALLBACK WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR Co
                     DispatchMessage(&Message);
                 }
 
-                Win32RenderGradient(&GlobalBackbuffer, XOffset, YOffset);
+                game_offscreen_buffer Buffer = {};
+                Buffer.Memory = GlobalBackbuffer.Memory;
+                Buffer.Width = GlobalBackbuffer.Width;
+                Buffer.Height = GlobalBackbuffer.Height;
+                Buffer.Pitch = GlobalBackbuffer.Pitch;
+                GameUpdateAndRender(&Buffer, XOffset, YOffset);
 
                 DWORD PlayCursor;
                 DWORD WriteCursor;
@@ -370,10 +362,11 @@ int CALLBACK WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR Co
                 double FPS = ((double)PerfCounterFrequency / (double)CounterElapsed);
                 double MCPF = (double)(CyclesElapsed / (1000.0f * 1000.0f));
 
+#if 0
                 char Buffer[256];
                 sprintf(Buffer, " %.02fms/f,  %.02ff/s, %.02fmc/f\n", MSPerFrame, FPS, MCPF);
                 OutputDebugStringA(Buffer);
-
+#endif
                 LastCounter = EndCounter;
                 LastCycleCount = EndCycleCount;
             }
