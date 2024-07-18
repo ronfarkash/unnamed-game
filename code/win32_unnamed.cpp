@@ -14,7 +14,6 @@ typedef int32_t bool32;
 #include <windows.h>
 
 #include "unnamed.cpp"
-#include "unnamed.h"
 
 #define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPCGUID pcGuideDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
 typedef DIRECT_SOUND_CREATE(direct_sound_create);
