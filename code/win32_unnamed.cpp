@@ -220,7 +220,8 @@ struct win32_sound_output
     int LatencySampleCount;
 };
 
-void Win32FillSoundBuffer(win32_sound_output *SoundOutput, DWORD ByteToLock, DWORD BytesToWrite)
+void Win32FillSoundBuffer(
+    win32_sound_output *SoundOutput, DWORD ByteToLock, DWORD BytesToWrite, game_sound_output_buffer *SourceBuffer)
 {
     VOID *Region1;
     DWORD Region1Size;
@@ -230,9 +231,9 @@ void Win32FillSoundBuffer(win32_sound_output *SoundOutput, DWORD ByteToLock, DWO
     if (SUCCEEDED(
             GlobalSecondaryBuffer->Lock(ByteToLock, BytesToWrite, &Region1, &Region1Size, &Region2, &Region2Size, 0)))
     {
-        int16_t *SampleOut = (int16_t *)Region1;
         DWORD Region1SampleCount = Region1Size / SoundOutput->BytesPerSample;
-
+        int16_t *SampleOut = (int16_t *)Region1;
+        int16_t *SourceSample = SourceBuffer->Samples;
         for (DWORD SampleIndex = 0; SampleIndex < Region1SampleCount; ++SampleIndex)
         {
             float SineValue = sinf(SoundOutput->tSine);
@@ -243,8 +244,8 @@ void Win32FillSoundBuffer(win32_sound_output *SoundOutput, DWORD ByteToLock, DWO
             ++SoundOutput->RunningSampleIndex;
         }
 
-        SampleOut = (int16_t *)Region2;
         DWORD Region2SampleCount = Region2Size / SoundOutput->BytesPerSample;
+        SampleOut = (int16_t *)Region2;
         for (DWORD SampleIndex = 0; SampleIndex < Region2SampleCount; ++SampleIndex)
         {
             float SineValue = sinf(SoundOutput->tSine);
@@ -318,12 +319,18 @@ int CALLBACK WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR Co
                     DispatchMessage(&Message);
                 }
 
+                int16_t Samples[48000 / 30 * 2];
+                game_sound_output_buffer SoundBuffer = {};
+                SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond;
+                SoundBuffer.SampleCount = SoundBuffer.SamplesPerSecond / 30;
+                SoundBuffer.Samples = Samples;
+
                 game_offscreen_buffer Buffer = {};
                 Buffer.Memory = GlobalBackbuffer.Memory;
                 Buffer.Width = GlobalBackbuffer.Width;
                 Buffer.Height = GlobalBackbuffer.Height;
                 Buffer.Pitch = GlobalBackbuffer.Pitch;
-                GameUpdateAndRender(&Buffer, XOffset, YOffset);
+                GameUpdateAndRender(&Buffer, XOffset, YOffset, &SoundBuffer);
 
                 DWORD PlayCursor;
                 DWORD WriteCursor;
