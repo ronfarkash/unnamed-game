@@ -20,13 +20,13 @@ internal void RenderGradient(game_offscreen_buffer *Buffer, int XOffset, int YOf
 internal void GameOutputSound(game_sound_output_buffer *SoundBuffer)
 {
     local_persist float tSine;
-    int16_t ToneVolume = 3000;
+    int16_t ToneVolume = 1000;
     int ToneHz = 256;
     int WavePeriod = SoundBuffer->SamplesPerSecond / ToneHz;
 
     int16_t *SampleOut = SoundBuffer->Samples;
 
-    for (DWORD SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount; ++SampleIndex)
+    for (int SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount; ++SampleIndex)
     {
         float SineValue = sinf(tSine);
         int16_t SampleValue = (int16_t)(SineValue * ToneVolume);
