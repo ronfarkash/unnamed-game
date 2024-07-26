@@ -3,6 +3,8 @@
 
 // timing, input, bitmap to render, sound
 
+#define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
+
 struct game_offscreen_buffer
 {
     void *Memory;
@@ -18,7 +20,17 @@ struct game_sound_output_buffer
     int16_t *Samples;
 };
 
-void GameUpdateAndRender(
-    game_offscreen_buffer *Buffer, int BlueOffset, int GreenOffset, game_sound_output_buffer *SoundBuffer);
+struct game_button_state
+{
+    int HalfTransitionCount;
+    bool32 EndedDown;
+};
+
+struct game_input
+{
+
+};
+
+void GameUpdateAndRender(game_offscreen_buffer *Buffer, game_sound_output_buffer *SoundBuffer);
 
 #endif
