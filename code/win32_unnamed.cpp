@@ -292,84 +292,105 @@ int CALLBACK WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR Co
             int16_t *Samples =
                 (int16_t *)VirtualAlloc(0, SoundOutput.SecondaryBufferSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
-            LARGE_INTEGER LastCounter;
-            QueryPerformanceCounter(&LastCounter);
-            int64_t LastCycleCount = __rdtsc();
-            while (GlobalRunning)
+#if UNNAMED_INTERNAL
+            LPVOID BaseAddress = (LPVOID)Terabytes((uint64_t)2);
+#else
+            LPVOID BaseAddress = 0;
+#endif
+
+            game_memory GameMemory = {};
+            GameMemory.PermanentStorageSize = Megabytes(64);
+            GameMemory.TransientStorageSize = Gigabytes((uint64_t)4);
+
+            uint64_t TotalSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize;
+            GameMemory.PermanentStorage =
+                VirtualAlloc(BaseAddress, TotalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+            GameMemory.TransientStorage = ((uint8_t *)GameMemory.PermanentStorage + GameMemory.PermanentStorageSize);
+
+            if (Samples && GameMemory.PermanentStorage && GameMemory.TransientStorage)
             {
-                MSG Message;
-                while (PeekMessage(&Message, 0, 0, 0, PM_REMOVE))
+                LARGE_INTEGER LastCounter;
+                QueryPerformanceCounter(&LastCounter);
+                int64_t LastCycleCount = __rdtsc();
+                while (GlobalRunning)
                 {
-                    if (Message.message == WM_QUIT)
+                    MSG Message;
+                    while (PeekMessage(&Message, 0, 0, 0, PM_REMOVE))
                     {
-                        GlobalRunning = false;
+                        if (Message.message == WM_QUIT)
+                        {
+                            GlobalRunning = false;
+                        }
+                        TranslateMessage(&Message);
+                        DispatchMessage(&Message);
                     }
-                    TranslateMessage(&Message);
-                    DispatchMessage(&Message);
-                }
 
-                DWORD ByteToLock = 0;
-                DWORD TargetCursor = 0;
-                DWORD BytesToWrite = 0;
-                DWORD PlayCursor = 0;
-                DWORD WriteCursor = 0;
-                bool32 SoundIsValid = false;
-                if (SUCCEEDED(GlobalSecondaryBuffer->GetCurrentPosition(&PlayCursor, &WriteCursor)))
-                {
-                    ByteToLock =
-                        (SoundOutput.RunningSampleIndex * SoundOutput.BytesPerSample) % SoundOutput.SecondaryBufferSize;
-                    TargetCursor = (PlayCursor + (SoundOutput.LatencySampleCount * SoundOutput.BytesPerSample)) %
-                                   SoundOutput.SecondaryBufferSize;
-                    if (ByteToLock > TargetCursor)
+                    DWORD ByteToLock = 0;
+                    DWORD TargetCursor = 0;
+                    DWORD BytesToWrite = 0;
+                    DWORD PlayCursor = 0;
+                    DWORD WriteCursor = 0;
+                    bool32 SoundIsValid = false;
+                    if (SUCCEEDED(GlobalSecondaryBuffer->GetCurrentPosition(&PlayCursor, &WriteCursor)))
                     {
-                        BytesToWrite = (SoundOutput.SecondaryBufferSize - ByteToLock);
-                        BytesToWrite += TargetCursor;
+                        ByteToLock = (SoundOutput.RunningSampleIndex * SoundOutput.BytesPerSample) %
+                                     SoundOutput.SecondaryBufferSize;
+                        TargetCursor = (PlayCursor + (SoundOutput.LatencySampleCount * SoundOutput.BytesPerSample)) %
+                                       SoundOutput.SecondaryBufferSize;
+                        if (ByteToLock > TargetCursor)
+                        {
+                            BytesToWrite = (SoundOutput.SecondaryBufferSize - ByteToLock);
+                            BytesToWrite += TargetCursor;
+                        }
+                        else
+                        {
+                            BytesToWrite = TargetCursor - ByteToLock;
+                        }
+                        SoundIsValid = true;
                     }
-                    else
+
+                    game_sound_output_buffer SoundBuffer = {};
+                    SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond;
+                    SoundBuffer.SampleCount = BytesToWrite / SoundOutput.BytesPerSample;
+                    SoundBuffer.Samples = Samples;
+
+                    game_offscreen_buffer Buffer = {};
+                    Buffer.Memory = GlobalBackbuffer.Memory;
+                    Buffer.Width = GlobalBackbuffer.Width;
+                    Buffer.Height = GlobalBackbuffer.Height;
+                    Buffer.Pitch = GlobalBackbuffer.Pitch;
+                    GameUpdateAndRender(&GameMemory, &Buffer, &SoundBuffer);
+
+                    if (SoundIsValid)
                     {
-                        BytesToWrite = TargetCursor - ByteToLock;
+                        Win32FillSoundBuffer(&SoundOutput, ByteToLock, BytesToWrite, &SoundBuffer);
                     }
-                    SoundIsValid = true;
-                }
 
-                game_sound_output_buffer SoundBuffer = {};
-                SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond;
-                SoundBuffer.SampleCount = BytesToWrite / SoundOutput.BytesPerSample;
-                SoundBuffer.Samples = Samples;
+                    win32_window_dimension Dimension = Win32GetWindowDimension(Window);
+                    Win32DisplayBufferInWindow(DeviceContext, Dimension.Width, Dimension.Height, &GlobalBackbuffer);
 
-                game_offscreen_buffer Buffer = {};
-                Buffer.Memory = GlobalBackbuffer.Memory;
-                Buffer.Width = GlobalBackbuffer.Width;
-                Buffer.Height = GlobalBackbuffer.Height;
-                Buffer.Pitch = GlobalBackbuffer.Pitch;
-                GameUpdateAndRender(&Buffer, &SoundBuffer);
+                    LARGE_INTEGER EndCounter;
+                    QueryPerformanceCounter(&EndCounter);
 
-                if (SoundIsValid)
-                {
-                    Win32FillSoundBuffer(&SoundOutput, ByteToLock, BytesToWrite, &SoundBuffer);
-                }
+                    uint64_t EndCycleCount = __rdtsc();
 
-                win32_window_dimension Dimension = Win32GetWindowDimension(Window);
-                Win32DisplayBufferInWindow(DeviceContext, Dimension.Width, Dimension.Height, &GlobalBackbuffer);
-
-                LARGE_INTEGER EndCounter;
-                QueryPerformanceCounter(&EndCounter);
-
-                uint64_t EndCycleCount = __rdtsc();
-
-                uint64_t CyclesElapsed = EndCycleCount - LastCycleCount;
-                int64_t CounterElapsed = EndCounter.QuadPart - LastCounter.QuadPart;
-                double MSPerFrame = ((1000.0f * (double)CounterElapsed) / (double)PerfCounterFrequency);
-                double FPS = ((double)PerfCounterFrequency / (double)CounterElapsed);
-                double MCPF = (double)(CyclesElapsed / (1000.0f * 1000.0f));
+                    uint64_t CyclesElapsed = EndCycleCount - LastCycleCount;
+                    int64_t CounterElapsed = EndCounter.QuadPart - LastCounter.QuadPart;
+                    double MSPerFrame = ((1000.0f * (double)CounterElapsed) / (double)PerfCounterFrequency);
+                    double FPS = ((double)PerfCounterFrequency / (double)CounterElapsed);
+                    double MCPF = (double)(CyclesElapsed / (1000.0f * 1000.0f));
 
 #if 0
                 char Buffer[256];
                 sprintf(Buffer, " %.02fms/f,  %.02ff/s, %.02fmc/f\n", MSPerFrame, FPS, MCPF);
                 OutputDebugStringA(Buffer);
 #endif
-                LastCounter = EndCounter;
-                LastCycleCount = EndCycleCount;
+                    LastCounter = EndCounter;
+                    LastCycleCount = EndCycleCount;
+                }
+            }
+            else
+            {
             }
         }
         else
