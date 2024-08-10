@@ -3,6 +3,7 @@
 
 // timing, input, bitmap to render, sound
 
+
 #if UNNAMED_SLOW
 #define Assert(Expression) \
     if (!(Expression))     \
@@ -12,6 +13,24 @@
 #else
 #define Assert(Expression)
 #endif
+
+#if UNNAMED_INTERNAL
+struct debug_read_file_result
+{
+    uint32_t ContentsSize;
+    void *Contents;
+};
+internal debug_read_file_result DEBUGPlatformReadEntireFile(char *Filename);
+internal void DEBUGPlatformFreeFileMemory(void *Memory);
+internal bool32 DEBUGPlatformWriteEntireFile(char *Filename, uint32_t MemorySize, void *Memory);
+#endif
+
+inline uint32_t SafeTruncateUInt64(uint64_t Value)
+{
+    Assert(Value <= 0xFFFFFF);
+    uint32_t Result = (uint32_t)Value;
+    return (Result);
+}
 
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
 #define Kilobytes(Value) ((Value) * 1024)
