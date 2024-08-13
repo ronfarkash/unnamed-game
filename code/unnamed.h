@@ -3,7 +3,6 @@
 
 // timing, input, bitmap to render, sound
 
-
 #if UNNAMED_SLOW
 #define Assert(Expression) \
     if (!(Expression))     \
@@ -72,7 +71,7 @@ struct game_memory
     void *TransientStorage;
 };
 
-void GameUpdateAndRender(game_memory *Memory, game_offscreen_buffer *Buffer, game_sound_output_buffer *SoundBuffer);
+internal void GameUpdateAndRender(game_memory *Memory, game_offscreen_buffer *Buffer, game_sound_output_buffer *SoundBuffer);
 
 struct game_state
 {
