@@ -58,8 +58,40 @@ struct game_button_state
     bool32 EndedDown;
 };
 
+struct game_controller_input
+{
+    bool32 IsAnalog;
+
+    float StartX;
+    float StartY;
+
+    float MinX;
+    float MinY;
+
+    float MaxX;
+    float MaxY;
+
+    float EndX;
+    float EndY;
+
+    union
+    {
+        game_button_state Buttons[6];
+        struct
+        {
+            game_button_state Up;
+            game_button_state Down;
+            game_button_state Left;
+            game_button_state Right;
+            game_button_state LeftShoulder;
+            game_button_state RightShoulder;
+        };
+    };
+};
+
 struct game_input
 {
+    game_controller_input Controllers[4];
 };
 
 struct game_memory

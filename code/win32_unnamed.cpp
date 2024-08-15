@@ -228,14 +228,7 @@ LRESULT CALLBACK Win32MainWindowCallback(HWND Window, UINT Message, WPARAM WPara
         case WM_KEYDOWN:
         case WM_KEYUP:
         {
-            uint32_t VKCode = (uint32_t)WParam;
-            bool32 WasDown = ((LParam & (1 << 30)) != 0);
-            bool32 IsDown = ((LParam & (1 << 31)) == 0);
-            if (WasDown == IsDown)
-                break;
-            if (VKCode == VK_UP)
-            {
-            }
+            Assert(!"Keyboard input where it shouldn't be");
         }
         break;
         case WM_PAINT:
@@ -320,6 +313,12 @@ void Win32FillSoundBuffer(
     }
 }
 
+internal void Win32ProcessKeyboardMessage(game_button_state *NewState, bool32 IsDown)
+{
+    NewState->EndedDown = IsDown;
+    ++NewState->HalfTransitionCount;
+}
+
 int CALLBACK WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowCode)
 {
     LARGE_INTEGER PerfCounterFrequencyResult;
@@ -378,20 +377,56 @@ int CALLBACK WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR Co
 
             if (Samples && GameMemory.PermanentStorage && GameMemory.TransientStorage)
             {
+                game_input Input[2] = {};
+                game_input *NewInput = &Input[0];
+                game_input *OldInput = &Input[1];
+
                 LARGE_INTEGER LastCounter;
                 QueryPerformanceCounter(&LastCounter);
                 int64_t LastCycleCount = __rdtsc();
                 while (GlobalRunning)
                 {
                     MSG Message;
+                    game_controller_input *KeyboardController = &NewInput->Controllers[0];
+                    game_controller_input ZeroController = {};
+                    *KeyboardController = ZeroController;
+
                     while (PeekMessage(&Message, 0, 0, 0, PM_REMOVE))
                     {
                         if (Message.message == WM_QUIT)
                         {
                             GlobalRunning = false;
                         }
-                        TranslateMessage(&Message);
-                        DispatchMessage(&Message);
+                        switch (Message.message)
+                        {
+                            case WM_SYSKEYDOWN:
+                            case WM_SYSKEYUP:
+                            case WM_KEYDOWN:
+                            case WM_KEYUP:
+                            {
+                                uint32_t VKCode = (uint32_t)Message.wParam;
+                                bool32 WasDown = ((Message.lParam & (1 << 30)) != 0);
+                                bool32 IsDown = ((Message.lParam & (1 << 31)) == 0);
+                                if (WasDown != IsDown)
+                                {
+                                    if (VKCode == VK_UP)
+                                    {
+                                        Win32ProcessKeyboardMessage(&KeyboardController->Up, IsDown);
+                                    }
+                                    else if (VKCode == VK_ESCAPE)
+                                    {
+                                        GlobalRunning = false;
+                                    }
+                                }
+                            }
+                            break;
+                            default:
+                            {
+                                TranslateMessage(&Message);
+                                DispatchMessage(&Message);
+                            }
+                            break;
+                        }
                     }
 
                     DWORD ByteToLock = 0;
