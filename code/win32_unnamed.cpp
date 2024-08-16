@@ -315,8 +315,67 @@ void Win32FillSoundBuffer(
 
 internal void Win32ProcessKeyboardMessage(game_button_state *NewState, bool32 IsDown)
 {
+    // we process keyboard input only if isdown state changes, if this assert pops it means we are handling things wrong.
+    Assert(NewState->EndedDown != IsDown);
     NewState->EndedDown = IsDown;
     ++NewState->HalfTransitionCount;
+    char buffer[50];
+    sprintf_s(buffer, "%d\n", NewState->HalfTransitionCount);
+    OutputDebugStringA(buffer);
+}
+
+internal void Win32ProcessPendingMessages(game_controller_input *KeyboardController)
+{
+    MSG Message;
+    while (PeekMessage(&Message, 0, 0, 0, PM_REMOVE))
+    {
+        if (Message.message == WM_QUIT)
+        {
+            GlobalRunning = false;
+        }
+        switch (Message.message)
+        {
+            case WM_SYSKEYDOWN:
+            case WM_SYSKEYUP:
+            case WM_KEYDOWN:
+            case WM_KEYUP:
+            {
+                uint32_t VKCode = (uint32_t)Message.wParam;
+                bool32 WasDown = ((Message.lParam & (1 << 30)) != 0);
+                bool32 IsDown = ((Message.lParam & (1 << 31)) == 0);
+                if (WasDown != IsDown)
+                {
+                    if (VKCode == VK_UP)
+                    {
+                        Win32ProcessKeyboardMessage(&KeyboardController->Up, IsDown);
+                    }
+                    else if (VKCode == VK_DOWN)
+                    {
+                        Win32ProcessKeyboardMessage(&KeyboardController->Down, IsDown);
+                    }
+                    else if (VKCode == VK_RIGHT)
+                    {
+                        Win32ProcessKeyboardMessage(&KeyboardController->Right, IsDown);
+                    }
+                    else if (VKCode == VK_LEFT)
+                    {
+                        Win32ProcessKeyboardMessage(&KeyboardController->Left, IsDown);
+                    }
+                    else if (VKCode == VK_ESCAPE)
+                    {
+                        GlobalRunning = false;
+                    }
+                }
+            }
+            break;
+            default:
+            {
+                TranslateMessage(&Message);
+                DispatchMessage(&Message);
+            }
+            break;
+        }
+    }
 }
 
 int CALLBACK WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowCode)
@@ -386,48 +445,16 @@ int CALLBACK WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR Co
                 int64_t LastCycleCount = __rdtsc();
                 while (GlobalRunning)
                 {
-                    MSG Message;
-                    game_controller_input *KeyboardController = &NewInput->Controllers[0];
-                    game_controller_input ZeroController = {};
-                    *KeyboardController = ZeroController;
-
-                    while (PeekMessage(&Message, 0, 0, 0, PM_REMOVE))
+                    game_controller_input *OldKeyboardController = &OldInput->Controllers[0];
+                    game_controller_input *NewKeyboardController = &NewInput->Controllers[0];
+                    *NewKeyboardController = {};
+                    for (int ButtonIndex = 0; ButtonIndex < ArrayCount(NewKeyboardController->Buttons); ++ButtonIndex)
                     {
-                        if (Message.message == WM_QUIT)
-                        {
-                            GlobalRunning = false;
-                        }
-                        switch (Message.message)
-                        {
-                            case WM_SYSKEYDOWN:
-                            case WM_SYSKEYUP:
-                            case WM_KEYDOWN:
-                            case WM_KEYUP:
-                            {
-                                uint32_t VKCode = (uint32_t)Message.wParam;
-                                bool32 WasDown = ((Message.lParam & (1 << 30)) != 0);
-                                bool32 IsDown = ((Message.lParam & (1 << 31)) == 0);
-                                if (WasDown != IsDown)
-                                {
-                                    if (VKCode == VK_UP)
-                                    {
-                                        Win32ProcessKeyboardMessage(&KeyboardController->Up, IsDown);
-                                    }
-                                    else if (VKCode == VK_ESCAPE)
-                                    {
-                                        GlobalRunning = false;
-                                    }
-                                }
-                            }
-                            break;
-                            default:
-                            {
-                                TranslateMessage(&Message);
-                                DispatchMessage(&Message);
-                            }
-                            break;
-                        }
+                        NewKeyboardController->Buttons[ButtonIndex].EndedDown =
+                            OldKeyboardController->Buttons[ButtonIndex].EndedDown;
                     }
+
+                    Win32ProcessPendingMessages(NewKeyboardController);
 
                     DWORD ByteToLock = 0;
                     DWORD TargetCursor = 0;
@@ -463,7 +490,7 @@ int CALLBACK WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR Co
                     Buffer.Width = GlobalBackbuffer.Width;
                     Buffer.Height = GlobalBackbuffer.Height;
                     Buffer.Pitch = GlobalBackbuffer.Pitch;
-                    GameUpdateAndRender(&GameMemory, &Buffer, &SoundBuffer);
+                    GameUpdateAndRender(&GameMemory, NewInput, &Buffer, &SoundBuffer);
 
                     if (SoundIsValid)
                     {
@@ -491,6 +518,10 @@ int CALLBACK WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR Co
 #endif
                     LastCounter = EndCounter;
                     LastCycleCount = EndCycleCount;
+
+                    game_input *Temp = NewInput;
+                    NewInput = OldInput;
+                    OldInput = Temp;
                 }
             }
             else

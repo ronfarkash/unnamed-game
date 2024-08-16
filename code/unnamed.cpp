@@ -36,9 +36,13 @@ internal void GameOutputSound(game_sound_output_buffer *SoundBuffer, int ToneHz)
     }
 }
 
-internal void
-GameUpdateAndRender(game_memory *Memory, game_offscreen_buffer *Buffer, game_sound_output_buffer *SoundBuffer)
+internal void GameUpdateAndRender(
+    game_memory *Memory, game_input *Input, game_offscreen_buffer *Buffer, game_sound_output_buffer *SoundBuffer)
 {
+    Assert(
+        (&Input->Controllers[0].Terminator - &Input->Controllers[0].Buttons[0]) ==
+        (ArrayCount(Input->Controllers[0].Buttons) - 1));
+    Assert(sizeof(game_state) <= Memory->PermanentStorageSize);
     game_state *GameState = (game_state *)Memory->PermanentStorage;
     if (!Memory->IsInitialized)
     {
@@ -52,6 +56,11 @@ GameUpdateAndRender(game_memory *Memory, game_offscreen_buffer *Buffer, game_sou
 
         Memory->IsInitialized = true;
     }
+    game_controller_input *Input0 = &Input->Controllers[0];
+    GameState->GreenOffset += (int)(2.0f * Input0->Down.EndedDown);
+    GameState->GreenOffset -= (int)(2.0f * Input0->Up.EndedDown);
+    GameState->BlueOffset += (int)(2.0f * Input0->Right.EndedDown);
+    GameState->BlueOffset -= (int)(2.0f * Input0->Left.EndedDown);
 
     GameOutputSound(SoundBuffer, GameState->ToneHz);
     RenderGradient(Buffer, GameState->BlueOffset, GameState->GreenOffset);

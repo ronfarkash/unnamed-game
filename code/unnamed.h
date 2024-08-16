@@ -60,38 +60,25 @@ struct game_button_state
 
 struct game_controller_input
 {
-    bool32 IsAnalog;
-
-    float StartX;
-    float StartY;
-
-    float MinX;
-    float MinY;
-
-    float MaxX;
-    float MaxY;
-
-    float EndX;
-    float EndY;
-
     union
     {
-        game_button_state Buttons[6];
+        game_button_state Buttons[5];
         struct
         {
             game_button_state Up;
             game_button_state Down;
             game_button_state Left;
             game_button_state Right;
-            game_button_state LeftShoulder;
-            game_button_state RightShoulder;
+
+            // this is ugly
+            game_button_state Terminator;
         };
     };
 };
 
 struct game_input
 {
-    game_controller_input Controllers[4];
+    game_controller_input Controllers[5];
 };
 
 struct game_memory
@@ -103,7 +90,8 @@ struct game_memory
     void *TransientStorage;
 };
 
-internal void GameUpdateAndRender(game_memory *Memory, game_offscreen_buffer *Buffer, game_sound_output_buffer *SoundBuffer);
+internal void GameUpdateAndRender(
+    game_memory *Memory, game_input *Input, game_offscreen_buffer *Buffer, game_sound_output_buffer *SoundBuffer);
 
 struct game_state
 {
