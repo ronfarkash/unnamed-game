@@ -518,20 +518,32 @@ int CALLBACK WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR Co
                     }
 
                     LARGE_INTEGER WorkerCounter = Win32GetWallClock();
-
                     float WorkSecondsElapsed = Win32GetSecondsElapsed(LastCounter, WorkerCounter);
 
                     float SecondsElapsedForFrame = WorkSecondsElapsed;
 
                     if (SecondsElapsedForFrame < TargetSecondsPerFrame)
                     {
-                        while (SecondsElapsedForFrame < TargetSecondsPerFrame)
+                        if (SleepIsGranular)
                         {
-                            if (SleepIsGranular)
+                            DWORD SleepMS = (DWORD)(1000.0f * (TargetSecondsPerFrame - SecondsElapsedForFrame));
+                            if (SleepMS > 0)
                             {
-                                DWORD SleepMS = (DWORD)(1000.0f * (TargetSecondsPerFrame - SecondsElapsedForFrame));
                                 Sleep(SleepMS);
                             }
+                        }
+
+                        // float TestSecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
+                        // Assert(TestSecondsElapsedForFrame < TargetSecondsPerFrame);
+                        // if (TestSecondsElapsedForFrame >= TargetSecondsPerFrame)
+                        // {
+                        //     char buffer[50];
+                        //     sprintf_s(buffer, "Overslept for %0.7f\n", TestSecondsElapsedForFrame - TargetSecondsPerFrame);
+                        //     OutputDebugStringA(buffer);
+                        // }
+
+                        while (SecondsElapsedForFrame < TargetSecondsPerFrame)
+                        {
                             SecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
                         }
                     }
@@ -539,6 +551,10 @@ int CALLBACK WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR Co
                     {
                         // missed frame rate
                     }
+                    LARGE_INTEGER EndCounter = Win32GetWallClock();
+                    double MSPerFrame = 1000.0f * Win32GetSecondsElapsed(LastCounter, EndCounter);
+                    LastCounter = EndCounter;
+                    
                     win32_window_dimension Dimension = Win32GetWindowDimension(Window);
                     Win32DisplayBufferInWindow(DeviceContext, Dimension.Width, Dimension.Height, &GlobalBackbuffer);
 
@@ -546,9 +562,6 @@ int CALLBACK WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR Co
                     NewInput = OldInput;
                     OldInput = Temp;
 
-                    LARGE_INTEGER EndCounter = Win32GetWallClock();
-                    double MSPerFrame = 1000.0f * Win32GetSecondsElapsed(LastCounter, EndCounter);
-                    LastCounter = EndCounter;
 
                     uint64_t EndCycleCount = __rdtsc();
                     uint64_t CyclesElapsed = EndCycleCount - LastCycleCount;
@@ -560,7 +573,6 @@ int CALLBACK WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR Co
                     char FPSBuffer[256];
                     sprintf_s(FPSBuffer, " %.02fms/f,  %.02ff/s, %.02fmc/f\n", MSPerFrame, FPS, MCPF);
                     OutputDebugStringA(FPSBuffer);
-
                 }
             }
             else
